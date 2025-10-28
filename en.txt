@@ -1,0 +1,29 @@
+# pip install tensorflow matplotlib scikit-learn
+import numpy as np, matplotlib.pyplot as plt
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense
+from sklearn.manifold import TSNE
+(xtr, ytr), (xte, yte) = mnist.load_data()
+xtr = xtr.reshape(len(xtr), -1).astype("float32")/255.
+xte = xte.reshape(len(xte), -1).astype("float32")/255.
+inp = Input((784,))
+code = Dense(32, activation="relu")(inp)
+out  = Dense(784, activation="sigmoid")(code)
+ae   = Model(inp, out); enc = Model(inp, code)
+ae.compile("adam", "binary_crossentropy")
+ae.fit(xtr, xtr, epochs=30, batch_size=256, shuffle=True, validation_data=(xte, xte), verbose=0)
+rec = ae.predict(xte, verbose=0)
+n=10; plt.figure(figsize=(20,4))
+for i in range(n):
+    ax=plt.subplot(2,n,i+1);     ax.imshow(xte[i].reshape(28,28), cmap="gray"); ax.axis("off")
+    if i==0: ax.set_title("Original")
+    ax=plt.subplot(2,n,i+1+n);   ax.imshow(rec[i].reshape(28,28), cmap="gray"); ax.axis("off")
+    if i==0: ax.set_title("Reconstructed")
+plt.tight_layout(); plt.show()
+Z  = enc.predict(xte, verbose=0)
+Z2 = TSNE(n_components=2, random_state=42, init="pca", learning_rate="auto").fit_transform(Z)
+plt.figure(figsize=(10,8))
+sc = plt.scatter(Z2[:,0], Z2[:,1], c=yte, s=8, cmap="jet")
+plt.colorbar(sc, label="Digit"); plt.title("MNIST latent space (t-SNE)")
+plt.tight_layout(); plt.show()
