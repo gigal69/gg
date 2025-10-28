@@ -1,0 +1,26 @@
+# pip install diffusers transformers accelerate safetensors torch pillow
+import torch
+from diffusers import StableDiffusionInpaintPipeline
+from PIL import Image
+device = "cuda" if torch.cuda.is_available() else "cpu"
+dtype  = torch.float16 if device == "cuda" else torch.float32
+pipe = StableDiffusionInpaintPipeline.from_pretrained(
+    "runwayml/stable-diffusion-inpainting",
+    torch_dtype=dtype,
+)
+pipe = pipe.to(device)
+if device == "cuda":
+    pipe.enable_attention_slicing()
+img  = Image.open("sketch1.jpg").convert("RGB")
+mask = Image.open("mask.jpg").convert("L").resize(img.size)  # must match img size
+prompt = "a realistic human face, detailed skin, natural lighting"
+res = pipe(
+    prompt=prompt,
+    image=img,
+    mask_image=mask,
+    num_inference_steps=30,   # default is ~50
+    guidance_scale=7.5,
+).images[0]
+res.save("inpainted_image.jpg")
+res.show()
+print("Saved: inpainted_image.jpg")
