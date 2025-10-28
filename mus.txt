@@ -1,0 +1,15 @@
+# pip install -U torch torchaudio transformers accelerate
+import torch, torchaudio
+from transformers import AutoProcessor, MusicgenForConditionalGeneration
+model_id = "facebook/musicgen-small"
+proc = AutoProcessor.from_pretrained(model_id)
+model = MusicgenForConditionalGeneration.from_pretrained(model_id)
+prompt = "Fast-paced, heroic battle background music in the style of One Piece’s 'Overtaken', with driving strings, soaring brass, and aggressive percussion."
+inputs = proc(text=[prompt], return_tensors="pt")
+audio = model.generate(**inputs,
+                       do_sample=True,
+                       guidance_scale=3.0,
+                       max_new_tokens=50*18)
+sr = model.config.audio_encoder.sampling_rate
+torchaudio.save("text_music.wav", audio[0].cpu(), sr)
+print("Saved text_music.wav")
