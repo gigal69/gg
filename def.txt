@@ -1,0 +1,11 @@
+#pip install diffusers transformers accelerate safetensors torch torchvision --index-url https://download.pytorch.org/whl/cu121
+import torch
+from diffusers import StableDiffusionPipeline
+device = "cuda" if torch.cuda.is_available() else "cpu"
+pipe = StableDiffusionPipeline.from_pretrained(
+    "runwayml/stable-diffusion-v1-5",
+    torch_dtype=torch.float16 if device=="cuda" else torch.float32
+).to(device)
+if device=="cuda": pipe.enable_attention_slicing()
+img = pipe("cinematic war scene", num_inference_steps=30, guidance_scale=7.5).images[0]
+img.save("sd_out.png"); img.show()
