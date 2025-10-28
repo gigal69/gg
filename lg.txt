@@ -1,0 +1,29 @@
+import numpy as np, pandas as pd, matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error as mse
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, GRU, Dense
+url='https://raw.githubusercontent.com/jbrownlee/Datasets/master/airline-passengers.csv'
+data = pd.read_csv(url, usecols=[1]).values.astype('float32')
+sc = MinMaxScaler((0,1)); s = sc.fit_transform(data)
+def make_seq(d, k):
+    X = np.array([d[i:i+k,0] for i in range(len(d)-k-1)])
+    y = np.array([d[i+k,0]   for i in range(len(d)-k-1)])
+    return X[...,None], y
+k=5; n = int(0.8*len(s))
+Xtr,Ytr = make_seq(s[:n], k)
+Xte,Yte = make_seq(s[n:], k)
+def build_lstm(): m=Sequential([LSTM(50, input_shape=(k,1)), Dense(1)]); m.compile('adam','mse'); return m
+def build_gru():  m=Sequential([GRU (50, input_shape=(k,1)), Dense(1)]); m.compile('adam','mse'); return m
+lstm, gru = build_lstm(), build_gru()
+lstm.fit(Xtr,Ytr, epochs=60, batch_size=8, verbose=0)
+gru .fit(Xtr,Ytr, epochs=60, batch_size=8, verbose=0)
+lp = sc.inverse_transform(lstm.predict(Xte,verbose=0)).ravel()
+gp = sc.inverse_transform(gru .predict(Xte,verbose=0)).ravel()
+yt = sc.inverse_transform(Yte.reshape(-1,1)).ravel()
+l_rmse = (mse(yt, lp)**0.5); g_rmse = (mse(yt, gp)**0.5)
+print(f"LSTM RMSE: {l_rmse:.3f} | GRU RMSE: {g_rmse:.3f}")
+plt.figure(figsize=(10,5))
+plt.plot(yt, label='Actual'); plt.plot(lp, label='LSTM'); plt.plot(gp, label='GRU')
+plt.title('Airline Passengers: LSTM vs GRU'); plt.xlabel('Time'); plt.ylabel('Passengers')
+plt.legend(); plt.tight_layout(); plt.show()
