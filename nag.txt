@@ -1,0 +1,73 @@
+# pip install torch matplotlib
+import torch, torch.nn as nn, torch.optim as optim, numpy as np, matplotlib.pyplot as plt
+def make_batch(bs=64, img_size=28):
+    X = np.zeros((bs, img_size, img_size), dtype=np.float32)
+    yy, xx = np.mgrid[:img_size, :img_size]
+    for i in range(bs):
+        if np.random.rand()<0.5:  # square
+            s = np.random.randint(5,15); a = np.random.randint(5, img_size-s-5)
+            X[i, a:a+s, a:a+s] = 1.0
+        else:                      # circle
+            r = np.random.randint(5,10); cy, cx = np.random.randint(10, img_size-10, 2)
+            X[i] = ((xx-cx)**2 + (yy-cy)**2 < r*r).astype(np.float32)
+    return X.reshape(bs, -1)
+def show_grid(samples, title="Samples"):
+    s = samples[:16].reshape(-1,28,28)
+    plt.figure(figsize=(4,4))
+    for i in range(len(s)):
+        ax = plt.subplot(4,4,i+1); ax.imshow(s[i], cmap="gray"); ax.axis("off")
+    plt.suptitle(title); plt.tight_layout(); plt.show()
+# ==== Models (tiny MLPs) ====
+class G(nn.Module):
+    def __init__(self,z=100,img_dim=784):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(z,128), nn.ReLU(),
+            nn.Linear(128,256), nn.ReLU(),
+            nn.Linear(256,img_dim), nn.Sigmoid()
+        )
+    def forward(self,x): return self.net(x)
+class D(nn.Module):
+    def __init__(self,img_dim=784):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(img_dim,256), nn.LeakyReLU(0.2),
+            nn.Linear(256,128), nn.LeakyReLU(0.2),
+            nn.Linear(128,1), nn.Sigmoid()
+        )
+    def forward(self,x): return self.net(x)
+def train(epochs=5000, bs=64, zdim=100, img=28, lr=2e-4, device=None, plot_every=1000):
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    img_dim = img*img
+    Gnet, Dnet = G(zdim,img_dim).to(device), D(img_dim).to(device)
+    optG, optD = optim.Adam(Gnet.parameters(), lr=lr, betas=(0.5,0.999)), optim.Adam(Dnet.parameters(), lr=lr, betas=(0.5,0.999))
+    bce = nn.BCELoss()
+
+    for ep in range(1, epochs+1):
+        # real
+        Xr = torch.from_numpy(make_batch(bs, img)).to(device)
+        yr = torch.ones(bs,1, device=device)
+        # fake
+        z  = torch.randn(bs, zdim, device=device)
+        Xf = Gnet(z)
+        yf = torch.zeros(bs,1, device=device)
+
+        # D: maximize log(D(x))+log(1-D(G(z)))
+        Dnet.train(); optD.zero_grad()
+        d_loss = bce(Dnet(Xr), yr) + bce(Dnet(Xf.detach()), yf)
+        d_loss.backward(); optD.step()
+
+        # G: maximize log(D(G(z)))  == minimize BCE(D(G(z)), 1)
+        optG.zero_grad()
+        g_loss = bce(Dnet(Xf), yr)
+        g_loss.backward(); optG.step()
+
+        if ep % plot_every == 0:
+            print(f"Epoch {ep}/{epochs} | D: {d_loss.item():.3f} | G: {g_loss.item():.3f}")
+            with torch.no_grad():
+                samples = Gnet(torch.randn(16, zdim, device=device)).cpu().numpy()
+            show_grid(samples, f"Epoch {ep}")
+
+    return Gnet, Dnet
+if __name__ == "__main__":
+    train(epochs=5000, bs=64, zdim=100, img=28, lr=2e-4, plot_every=1000)
