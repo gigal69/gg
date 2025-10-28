@@ -1,0 +1,19 @@
+import numpy as np, matplotlib.pyplot as plt
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import SimpleRNN, Dense
+from sklearn.preprocessing import MinMaxScaler
+t = np.linspace(0,100,500)
+data = np.sin(t) + 0.1*np.random.randn(len(t))  # noisy sine wave
+sc = MinMaxScaler(); data = sc.fit_transform(data.reshape(-1,1))
+step = 20
+X = np.array([data[i:i+step,0] for i in range(len(data)-step)])
+Y = np.array([data[i+step,0] for i in range(len(data)-step)])
+X = X[...,None]
+n = int(0.8*len(X)); Xtr,Xte,Ytr,Yte = X[:n],X[n:],Y[:n],Y[n:]
+model = Sequential([SimpleRNN(32, input_shape=(step,1)), Dense(1)])
+model.compile('adam','mse')
+model.fit(Xtr,Ytr,epochs=20,batch_size=16,validation_data=(Xte,Yte),verbose=0)
+pred = model.predict(Xte,verbose=0)
+pred = sc.inverse_transform(pred)
+Yte = sc.inverse_transform(Yte.reshape(-1,1))
+plt.plot(Yte,label='True'); plt.plot(pred,label='Pred'); plt.legend(); plt.show()
